@@ -29,7 +29,7 @@
     (assert-equal nil (result-is-error result))
     (let ((content (first (result-content result))))
       (assert-equal "text" (content-type content))
-      (assert-true (search "Current time in" (content-text content))))))
+      (assert-true (search "New York" (content-text content))))))
 
 (deftest test-invalid-tool-call
   (handler-case

@@ -39,9 +39,6 @@ jobs:
     - name: Install Lisp dependencies
       run: make deps
       
-    - name: Run Lisp unit tests
-      run: make test-lisp
-      
     - name: Build MCP server
       run: make build
       
@@ -61,9 +58,102 @@ jobs:
     - name: Install Python dependencies
       run: make install-python-deps
       
-    - name: Run quick e2e tests
-      run: make test-e2e-quick
+    - name: Run quick tests with GitHub formatting
+      run: make test-quick-github
+      continue-on-error: true
+      id: quick_tests
       
-    - name: Run comprehensive tests (on main branch)
+    - name: Run comprehensive tests with GitHub formatting (on main branch)
       if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
-      run: make test-e2e
+      run: make test-github
+      continue-on-error: true
+      id: comprehensive_tests
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ github.run_number }}
+        path: |
+          test-results-*.xml
+          /tmp/mcp.jsonl
+        retention-days: 30
+        
+    - name: Publish test results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Test Results Summary
+        path: 'test-results-*.xml'
+        reporter: java-junit
+        fail-on-error: false
+        only-summary: false
+        
+    - name: Individual test result summary
+      if: always()
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "test-results-e2e-quick.xml" ] || [ -f "test-results-e2e.xml" ]; then
+          echo "### E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f "test-results-e2e-quick.xml" ]; then
+            python3 -c "
+        import xml.etree.ElementTree as ET
+        try:
+            tree = ET.parse('test-results-e2e-quick.xml')
+            root = tree.getroot()
+            for testcase in root.findall('.//testcase'):
+                name = testcase.get('name')
+                classname = testcase.get('classname')
+                time = testcase.get('time', '0')
+                failure = testcase.find('failure')
+                error = testcase.find('error')
+                if failure is not None:
+                    print(f'❌ **{classname}::{name}** - Failed ({time}s)')
+                    print(f'   \`\`\`\n   {failure.get(\"message\", \"No message\")}\n   \`\`\`')
+                elif error is not None:
+                    print(f'💥 **{classname}::{name}** - Error ({time}s)')
+                    print(f'   \`\`\`\n   {error.get(\"message\", \"No message\")}\n   \`\`\`')
+                else:
+                    print(f'✅ **{classname}::{name}** - Passed ({time}s)')
+        except Exception as e:
+            print(f'Could not parse test results: {e}')
+            " >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "test-results-e2e.xml" ]; then
+            python3 -c "
+        import xml.etree.ElementTree as ET
+        try:
+            tree = ET.parse('test-results-e2e.xml')
+            root = tree.getroot()
+            for testcase in root.findall('.//testcase'):
+                name = testcase.get('name')
+                classname = testcase.get('classname')
+                time = testcase.get('time', '0')
+                failure = testcase.find('failure')
+                error = testcase.find('error')
+                if failure is not None:
+                    print(f'❌ **{classname}::{name}** - Failed ({time}s)')
+                    print(f'   \`\`\`\n   {failure.get(\"message\", \"No message\")}\n   \`\`\`')
+                elif error is not None:
+                    print(f'💥 **{classname}::{name}** - Error ({time}s)')
+                    print(f'   \`\`\`\n   {error.get(\"message\", \"No message\")}\n   \`\`\`')
+                else:
+                    print(f'✅ **{classname}::{name}** - Passed ({time}s)')
+        except Exception as e:
+            print(f'Could not parse test results: {e}')
+            " >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Lisp Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "Check the Lisp Unit Tests group above for individual test results." >> $GITHUB_STEP_SUMMARY
+        
+    - name: Fail job if tests failed
+      if: steps.quick_tests.outcome == 'failure' || steps.comprehensive_tests.outcome == 'failure'
+      run: |
+        echo "::error::Tests failed - check individual test results above"
+        exit 1

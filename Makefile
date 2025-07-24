@@ -85,6 +85,33 @@ test-lisp: deps
 		--eval "(asdf:test-system :mcp-server)" \
 		--quit
 
+# Run Lisp unit tests with GitHub Actions formatting
+.PHONY: test-lisp-github
+test-lisp-github: deps
+	@echo "Running Lisp unit tests with GitHub formatting..."
+	@echo "::group::Lisp Unit Tests"
+	$(LISP) --eval "(push (uiop:getcwd) asdf:*central-registry*)" \
+		--eval "(ql:register-local-projects)" \
+		--eval "(ql:quickload :mcp-server)" \
+		--eval "(ql:quickload :mcp-server/tests)" \
+		--eval "(defparameter *github-mode* t)" \
+		--eval "(in-package :mcp-server-tests)" \
+		--eval "(defun github-format-output (output) \
+		          (let ((lines (split-sequence:split-sequence #\Newline output))) \
+		            (dolist (line lines) \
+		              (cond \
+		                ((search \"✓\" line) \
+		                 (format t \"::notice::~A~%\" line)) \
+		                ((search \"✗\" line) \
+		                 (format t \"::error::~A~%\" line)) \
+		                (t (format t \"~A~%\" line))))))" \
+		--eval "(let ((output (make-string-output-stream))) \
+		          (let ((*standard-output* output)) \
+		            (run-all-tests)) \
+		          (github-format-output (get-output-stream-string output)))" \
+		--quit || (echo "::error::Lisp unit tests failed" && exit 1)
+	@echo "::endgroup::"
+
 # Run Lisp tests with verbose output
 .PHONY: test-lisp-verbose
 test-lisp-verbose: deps
@@ -101,6 +128,21 @@ test-lisp-verbose: deps
 test-e2e: build install-python-deps
 	@echo "Running Python e2e tests..."
 	cd $(E2E_DIR) && ../../$(VENV_PYTHON) -m pytest . -v
+
+# Run Python e2e tests with GitHub Actions formatting
+.PHONY: test-e2e-github
+test-e2e-github: build install-python-deps
+	@echo "Running Python e2e tests with GitHub formatting..."
+	@echo "::group::End-to-End Tests"
+	cd $(E2E_DIR) && ../../$(VENV_PYTHON) -m pytest . -v \
+		--tb=short \
+		--junit-xml=../../test-results-e2e.xml \
+		-o junit_logging=all \
+		-o log_cli=true \
+		-o log_cli_level=INFO \
+		--capture=no \
+		|| (echo "::error::E2E tests failed" && exit 1)
+	@echo "::endgroup::"
 
 # Run specific Python e2e test files
 .PHONY: test-e2e-protocol
@@ -134,15 +176,44 @@ test-e2e-quick: build install-python-deps
 		test_tools.py::TestMCPTools::test_list_tools \
 		-v
 
+# Run quick e2e tests with GitHub Actions formatting
+.PHONY: test-e2e-quick-github
+test-e2e-quick-github: build install-python-deps
+	@echo "Running quick e2e tests with GitHub formatting..."
+	@echo "::group::Quick End-to-End Tests"
+	cd $(E2E_DIR) && ../../$(VENV_PYTHON) -m pytest \
+		test_protocol.py::TestMCPProtocol::test_server_startup \
+		test_protocol.py::TestMCPProtocol::test_initialization_handshake \
+		test_protocol.py::TestMCPProtocol::test_ping_functionality \
+		test_tools.py::TestMCPTools::test_list_tools \
+		-v --tb=short \
+		--junit-xml=../../test-results-e2e-quick.xml \
+		-o junit_logging=all \
+		-o log_cli=true \
+		-o log_cli_level=INFO \
+		--capture=no \
+		|| (echo "::error::Quick E2E tests failed" && exit 1)
+	@echo "::endgroup::"
+
 # Run comprehensive test suite (recommended default)
 .PHONY: test
 test: test-lisp test-e2e
 	@echo "Comprehensive test suite completed"
 
+# Run comprehensive test suite with GitHub Actions formatting
+.PHONY: test-github
+test-github: test-lisp-github test-e2e-github
+	@echo "::notice::Comprehensive test suite completed successfully"
+
 # Run quick test subset (Lisp + known working e2e tests)
 .PHONY: test-quick
 test-quick: test-lisp test-e2e-quick
 	@echo "Quick test subset completed"
+
+# Run quick test subset with GitHub Actions formatting
+.PHONY: test-quick-github
+test-quick-github: test-lisp-github test-e2e-quick-github
+	@echo "::notice::Quick test subset completed successfully"
 
 # Alias for comprehensive test suite (for backward compatibility)
 .PHONY: test-all
@@ -231,6 +302,13 @@ help:
 	@echo "  test-lisp     - Run only Lisp unit tests"
 	@echo "  test-e2e      - Run all Python e2e tests"
 	@echo "  test-e2e-quick- Run known working e2e tests"
+	@echo ""
+	@echo "GitHub CI/CD testing targets:"
+	@echo "  test-github        - Run comprehensive tests with GitHub formatting"
+	@echo "  test-quick-github  - Run quick tests with GitHub formatting"
+	@echo "  test-lisp-github   - Run Lisp tests with GitHub formatting"
+	@echo "  test-e2e-github    - Run e2e tests with GitHub formatting"
+	@echo "  test-e2e-quick-github - Run quick e2e tests with GitHub formatting"
 	@echo ""
 	@echo "Specific e2e test targets:"
 	@echo "  test-e2e-protocol  - Run protocol e2e tests"
