@@ -1,5 +1,8 @@
 # MCP Common Lisp Server
 
+[![CI](https://github.com/belyak/mcp-srv-lisp/actions/workflows/ci.yml/badge.svg)](https://github.com/belyak/mcp-srv-lisp/actions/workflows/ci.yml)
+[![CI Status](https://github.com/belyak/mcp-srv-lisp/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/belyak/mcp-srv-lisp/actions/workflows/ci.yml)
+
 A complete Common Lisp implementation of an MCP (Model Context Protocol) server with enhanced object-oriented architecture and comprehensive tooling.
 
 ## Project Structure
@@ -176,9 +179,25 @@ make test-lisp
 
 # Run only e2e tests
 make test-e2e
+
+# GitHub Actions formatted tests (for CI/CD)
+make test-github         # Comprehensive tests with GitHub formatting
+make test-quick-github   # Quick tests with GitHub formatting
 ```
 
 See [TESTING.md](TESTING.md) for detailed testing information.
+
+### Continuous Integration
+
+The project includes comprehensive GitHub Actions CI/CD that runs on every push and pull request:
+
+- **Lisp Unit Tests**: 24 tests covering type system, tools, prompts, resources, and utilities
+- **Python E2E Tests**: 37 integration tests validating complete MCP protocol communication
+- **Individual Test Visibility**: Each test result is displayed separately in GitHub's interface
+- **Artifacts**: Test results and logs are preserved for analysis
+- **Multi-environment**: Tests run on Ubuntu with SBCL and Python 3.11
+
+Current test status is shown in the badges above.
 
 ### Development REPL
 
