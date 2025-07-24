@@ -2,41 +2,6 @@
 ;; Main Server Implementation (src/main.lisp)
 ;; ====================================================================
 
-(defpackage #:mcp-server.main
-  (:use #:cl #:alexandria #:serapeum)
-  (:import-from #:mcp-server.types
-                #:parse-from-json
-                #:encode-to-json
-                #:json-rpc-request
-                #:json-rpc-notification
-                #:make-json-rpc-response
-                #:make-json-rpc-error)
-  (:import-from #:mcp-server.utilities
-                #:handle-initialize
-                #:handle-ping
-                #:handle-connect
-                #:handle-disconnect
-                #:handle-execute-line
-                #:handle-logging-set-level
-                #:handle-roots-list
-                #:handle-cancelled-notification
-                #:graceful-shutdown)
-  (:import-from #:mcp-server.tools
-                #:handle-tools-list
-                #:handle-tool-call)
-  (:import-from #:mcp-server.prompts
-                #:handle-prompts-list
-                #:handle-prompts-get)
-  (:import-from #:mcp-server.resources
-                #:handle-resources-list
-                #:handle-resource-read)
-  (:import-from #:unix-opts
-                #:define-opts
-                #:get-opts)
-  (:import-from #:trivial-signal
-                #:signal-handler-bind)
-  (:export #:main))
-
 (in-package #:mcp-server.main)
 
 ;; Command line options
@@ -86,47 +51,13 @@
 
 (defun dispatch-request (method params id)
   "Dispatch JSON-RPC request to appropriate handler"
-  (handler-case
-      (let ((result 
-             (cond
-               ((string= method "initialize")
-                (handle-initialize params))
-               ((string= method "ping")
-                (handle-ping params))
-               ((string= method "tools/list")
-                (handle-tools-list params))
-               ((string= method "tools/call")
-                (let ((tool-name (gethash "name" params))
-                      (tool-args (gethash "arguments" params)))
-                  (handle-tool-call tool-name tool-args)))
-               ((string= method "prompts/list")
-                (handle-prompts-list params))
-               ((string= method "prompts/get")
-                (handle-prompts-get params))
-               ((string= method "resources/list")
-                (handle-resources-list params))
-               ((string= method "resources/read")
-                (handle-resource-read params))
-               ((string= method "connect")
-                (handle-connect params))
-               ((string= method "disconnect")
-                (handle-disconnect params))
-               ((string= method "execute_line")
-                (handle-execute-line params))
-               ((string= method "logging/setLevel")
-                (handle-logging-set-level params))
-               ((string= method "roots/list")
-                (handle-roots-list params))
-               ;; Direct tool calls
-               ((string= method "get_current_time_in_city")
-                (handle-tool-call method params))
-               (t
-                (error "Method not found: ~A" method)))))
-        
-        (make-json-rpc-response id result))
-    
-    (error (e)
-      (make-json-rpc-error id -32603 (format nil "Internal error: ~A" e)))))
+  ;; Use the new OOP protocol-based dispatch
+  (let ((json-data (alexandria:alist-hash-table
+                    `(("method" . ,method)
+                      ("params" . ,params)
+                      ("id" . ,id))
+                    :test 'equal)))
+    (process-request-oop json-data)))
 
 (defun handle-notification (method params)
   "Handle JSON-RPC notification"
@@ -253,9 +184,12 @@
     
     (error (e)
       (format *error-output* "Error: ~A~%" e)
-      (sb-ext:exit :code 1))))
+      #+sbcl (sb-ext:exit :code 1)
+      #+ccl (ccl:quit 1)
+      #+ecl (si:quit 1))))
 
-;; Entry point for the binary
-(defun mcp-server:main ()
-  (main))
-
+;; Re-export main in the mcp-server package
+(in-package #:mcp-server)
+(defun main (&optional args)
+  "Main entry point for the MCP server"
+  (mcp-server.main:main args))

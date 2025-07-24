@@ -2,16 +2,14 @@
 ;; Constants (src/constants.lisp)
 ;; ====================================================================
 
-(defpackage #:mcp-server.constants
-  (:use #:cl)
-  (:export #:+jsonrpc-version+
-           #:+protocol-version+
-           #:+server-name+
-           #:+server-version+))
-
 (in-package #:mcp-server.constants)
 
-(defconstant +jsonrpc-version+ "2.0")
-(defconstant +protocol-version+ "2024-11-05")
-(defconstant +server-name+ "mcp-lisp-server")
-(defconstant +server-version+ "0.1.0")
+(defmacro define-constant (name value &optional doc)
+  "Define a constant, handling redefinition gracefully"
+  `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)
+     ,@(when doc (list doc))))
+
+(define-constant +jsonrpc-version+ "2.0")
+(define-constant +protocol-version+ "2024-11-05")
+(define-constant +server-name+ "mcp-lisp-server")
+(define-constant +server-version+ "0.1.0")

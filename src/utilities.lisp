@@ -2,33 +2,6 @@
 ;; Utilities (src/utilities.lisp)
 ;; ====================================================================
 
-(defpackage #:mcp-server.utilities
-  (:use #:cl #:alexandria #:serapeum)
-  (:import-from #:mcp-server.types
-                #:initialize-request
-                #:initialize-result
-                #:server-capabilities
-                #:implementation
-                #:empty-result
-                #:connect-result
-                #:disconnect-result
-                #:execute-line-result
-                #:cancelled-notification)
-  (:import-from #:mcp-server.constants
-                #:+protocol-version+
-                #:+server-name+
-                #:+server-version+)
-  (:export #:handle-initialize
-           #:handle-ping
-           #:handle-connect
-           #:handle-disconnect
-           #:handle-execute-line
-           #:handle-logging-set-level
-           #:handle-roots-list
-           #:handle-cancelled-notification
-           #:graceful-shutdown
-           #:notify))
-
 (in-package #:mcp-server.utilities)
 
 (defun handle-initialize (request)
@@ -94,11 +67,17 @@
 (defun notify (method &optional params)
   "Send notification to client"
   (let ((notification (yason:with-output-to-string* ()
-                        (yason:with-object
+                        (yason:with-object ()
                           (yason:encode-object-element "jsonrpc" "2.0")
                           (yason:encode-object-element "method" method)
                           (when params
                             (yason:encode-object-element "params" params))))))
     (format t "~A~%" notification)
     (force-output)))
+
+(defun handle-completion (ref argument)
+  "Handle completion request"
+  (declare (ignore ref argument))
+  ;; For now, return empty completion
+  (make-instance 'empty-result))
 

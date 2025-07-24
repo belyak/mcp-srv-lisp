@@ -2,6 +2,8 @@
 ;; Resources Tests (tests/test-resources.lisp)
 ;; =================================================================
 
+(in-package #:mcp-server-tests)
+
 (deftest test-resources-list-handler
   (let ((result (handle-resources-list nil)))
     (assert-not-nil result)

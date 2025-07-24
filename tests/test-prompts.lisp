@@ -2,6 +2,8 @@
 ;; Prompts Tests (tests/test-prompts.lisp)
 ;; =================================================================
 
+(in-package #:mcp-server-tests)
+
 (deftest test-prompts-list-handler
   (let ((result (handle-prompts-list nil)))
     (assert-not-nil result)
@@ -17,8 +19,8 @@
     (assert-equal 2 (length prompts))))
 
 (deftest test-prompts-get-current-time
-  (let* ((params (alexandria:alist-hash-table '(("name" . "current-time")
-                                                ("arguments" . (("city" . "Tokyo"))))
+  (let* ((params (alexandria:alist-hash-table `(("name" . "current-time")
+                                                ("arguments" . ,(alexandria:alist-hash-table '(("city" . "Tokyo")) :test 'equal)))
                                               :test 'equal))
          (result (handle-prompts-get params)))
     (assert-not-nil result)

@@ -2,6 +2,8 @@
 ;; Type System Tests (tests/test-types.lisp)
 ;; =================================================================
 
+(in-package #:mcp-server-tests)
+
 (deftest test-json-rpc-response-creation
   (let ((response (make-json-rpc-response 123 "test-result")))
     (assert-equal 123 (response-id response))
@@ -23,7 +25,7 @@
 
 (deftest test-json-parsing
   (let* ((json-str "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"test\"}")
-         (parsed (parse-from-json json-str)))
+         (parsed (parse-from-json json-str 'json-rpc-request)))
     (assert-not-nil parsed)))
 
 (defun test-types ()

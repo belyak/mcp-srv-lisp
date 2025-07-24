@@ -2,6 +2,8 @@
 ;; Utilities Tests (tests/test-utilities.lisp)
 ;; =================================================================
 
+(in-package #:mcp-server-tests)
+
 (deftest test-initialize-handler
   (let* ((params (alexandria:alist-hash-table '(("protocolVersion" . "2024-11-05")
                                                 ("capabilities" . nil)
@@ -58,7 +60,7 @@
     (let* ((prompt (first (prompts-list prompts-result)))
            (prompt-name (prompt-name prompt))
            (params (alexandria:alist-hash-table `(("name" . ,prompt-name)
-                                                  ("arguments" . (("city" . "Paris"))))
+                                                  ("arguments" . ,(alexandria:alist-hash-table '(("city" . "Paris")) :test 'equal)))
                                                 :test 'equal))
            (get-result (handle-prompts-get params)))
       (assert-not-nil get-result)

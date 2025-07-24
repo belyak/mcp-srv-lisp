@@ -2,19 +2,6 @@
 ;; Resources Implementation (src/resources.lisp)
 ;; ====================================================================
 
-(defpackage #:mcp-server.resources
-  (:use #:cl #:alexandria #:serapeum)
-  (:import-from #:mcp-server.types
-                #:resource
-                #:resource-content
-                #:list-resources-result
-                #:read-resource-result)
-  (:import-from #:mcp-server.templates
-                #:load-resources-template)
-  (:export #:handle-resources-list
-           #:handle-resource-read
-           #:get-available-resources))
-
 (in-package #:mcp-server.resources)
 
 (defvar *resources-cache* nil
@@ -48,8 +35,33 @@
   "Handle resources/read request"
   (let ((uri (gethash "uri" request)))
     (make-instance 'read-resource-result
-                   :content (make-instance 'resource-content
+                   :contents (make-instance 'resource-content
                                            :uri uri
                                            :mime-type "text/plain"
                                            :text "2024-11-28T08:19:18.974368Z,INFO,main,this is message"))))
+
+(defun handle-resources-read (uri)
+  "Handle resources/read request with uri parameter"
+  (make-instance 'read-resource-result
+                 :contents (make-instance 'resource-content
+                                         :uri uri
+                                         :mime-type "text/plain"
+                                         :text "2024-11-28T08:19:18.974368Z,INFO,main,this is message")))
+
+(defun get-available-resource-templates ()
+  "Get list of available resource templates"
+  ;; For now, return empty list - can be expanded later
+  '())
+
+(defun handle-resources-subscribe (uri)
+  "Handle resources/subscribe request"
+  (declare (ignore uri))
+  ;; For now, just return success
+  (make-instance 'empty-result))
+
+(defun handle-resources-unsubscribe (uri)
+  "Handle resources/unsubscribe request"
+  (declare (ignore uri))
+  ;; For now, just return success
+  (make-instance 'empty-result))
 

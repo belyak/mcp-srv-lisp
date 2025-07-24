@@ -1,34 +1,42 @@
-# MCP Common Lisp Server Template
+# MCP Common Lisp Server
 
-This is a port of the Rust MCP (Model Context Protocol) server template to Common Lisp.
+A complete Common Lisp implementation of an MCP (Model Context Protocol) server with enhanced object-oriented architecture and comprehensive tooling.
 
 ## Project Structure
 
 ```
-mcp-lisp-server/
+mcp-server/
 ├── mcp-server.asd              # ASDF system definition
 ├── README.md                   # This file
+├── TESTING.md                  # Comprehensive testing guide
+├── CLAUDE.md                   # Development instructions for Claude Code
 ├── LICENSE                     # Apache 2.0 license
 ├── build.lisp                  # Build script
-├── install.sh                  # Installation script
-├── Makefile                    # Build automation
+├── Makefile                    # Build automation with comprehensive test targets
 ├── src/
 │   ├── package.lisp            # Package definitions
 │   ├── constants.lisp          # Constants and configuration
-│   ├── types.lisp              # Type definitions and JSON handling
+│   ├── types.lisp              # Enhanced OOP type definitions with JSON handling
 │   ├── templates.lisp          # Template data (tools, prompts, resources)
 │   ├── utilities.lisp          # Core utilities and MCP handlers
-│   ├── tools.lisp              # Tools implementation
+│   ├── tools.lisp              # Tools implementation with command execution
+│   ├── command-tools.lisp      # System command execution tools
 │   ├── prompts.lisp            # Prompts implementation
 │   ├── resources.lisp          # Resources implementation
 │   └── main.lisp               # Main server and CLI
-└── tests/
-    ├── test-package.lisp       # Test package definition
-    ├── test-types.lisp         # Type system tests
-    ├── test-tools.lisp         # Tools tests
-    ├── test-prompts.lisp       # Prompts tests
-    ├── test-resources.lisp     # Resources tests
-    └── test-utilities.lisp     # Utilities tests
+├── tests/
+│   ├── test-package.lisp       # Test package definition
+│   ├── test-types.lisp         # Type system tests
+│   ├── test-tools.lisp         # Tools tests
+│   ├── test-prompts.lisp       # Prompts tests
+│   ├── test-resources.lisp     # Resources tests
+│   └── test-utilities.lisp     # Utilities tests
+└── tests/e2e/                  # Python end-to-end tests
+    ├── requirements.txt        # Python test dependencies
+    ├── test_protocol.py        # MCP protocol tests
+    ├── test_tools.py          # Tools integration tests
+    ├── test_prompts.py        # Prompts integration tests
+    └── test_resources.py      # Resources integration tests
 ```
 
 ## Dependencies
@@ -125,15 +133,19 @@ Add to your `claude_desktop_config.json`:
 ### Available Tools
 
 - `get_current_time_in_city` - Get current time for a specified city
+- `execute_command` - Execute system commands with configurable timeout and working directory
+- `list_directory` - List files and directories with optional filtering
 
 ### Available Prompts
 
 - `current-time` - Display current time in a city
-- `analyze-code` - Analyze code for potential improvements
+- `analyze-code` - Analyze code for potential improvements  
+- `system-info` - Get system information and diagnostics
 
 ### Available Resources
 
 - `Application Logs` - Sample log file resource at `file:///logs/app.log`
+- `System Status` - Real-time system status information
 
 ## Development
 
@@ -153,12 +165,20 @@ sbcl --eval "(asdf:make :mcp-server)" --quit
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run comprehensive test suite (recommended)
+make test-all
+
+# Run quick tests (Lisp + known working e2e tests)  
 make test
 
-# Or in SBCL
-sbcl --eval "(asdf:test-system :mcp-server)" --quit
+# Run only Lisp unit tests
+make test-lisp
+
+# Run only e2e tests
+make test-e2e
 ```
+
+See [TESTING.md](TESTING.md) for detailed testing information.
 
 ### Development REPL
 
@@ -227,11 +247,11 @@ Follow similar patterns in `resources.lisp` and update the templates.
 
 ### Key Components
 
-1. **Type System** (`types.lisp`) - Complete MCP protocol type definitions with JSON serialization
-2. **Request Dispatcher** (`main.lisp`) - JSON-RPC request routing and handling
-3. **Tools Framework** (`tools.lisp`) - Extensible tool registration and execution
-4. **Templates** (`templates.lisp`) - JSON-based configuration system
-5. **Utilities** (`utilities.lisp`) - Core MCP protocol handlers
+1. **Enhanced Type System** (`types.lisp`) - Complete MCP protocol type definitions with automatic JSON serialization using CLOS
+2. **Request Dispatcher** (`main.lisp`) - Robust JSON-RPC request routing and handling with error management
+3. **Tools Framework** (`tools.lisp`, `command-tools.lisp`) - Extensible tool system with system command execution capabilities
+4. **Templates System** (`templates.lisp`) - JSON-based configuration for easy feature extension
+5. **Core Utilities** (`utilities.lisp`) - MCP protocol handlers with comprehensive error handling
 
 ### JSON-RPC Handling
 
@@ -250,12 +270,22 @@ Graceful shutdown is supported via:
 
 ## Testing
 
-The server includes comprehensive tests covering:
+The server includes a comprehensive dual-testing system:
+
+### Lisp Unit Tests
 - Type system and JSON serialization
-- Tool execution
+- Tool execution and command handling  
 - Prompt generation
 - Resource access
 - Protocol compliance
+
+### Python End-to-End Tests
+- Complete MCP protocol communication
+- Real server integration testing
+- JSON-RPC message validation
+- Cross-language compatibility verification
+
+See [TESTING.md](TESTING.md) for complete testing documentation.
 
 ## Deployment
 

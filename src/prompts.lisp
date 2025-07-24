@@ -2,21 +2,6 @@
 ;; Prompts Implementation (src/prompts.lisp)
 ;; ====================================================================
 
-(defpackage #:mcp-server.prompts
-  (:use #:cl #:alexandria #:serapeum)
-  (:import-from #:mcp-server.types
-                #:prompt
-                #:prompt-argument
-                #:list-prompts-result
-                #:prompt-result
-                #:prompt-message
-                #:prompt-message-content)
-  (:import-from #:mcp-server.templates
-                #:load-prompts-template)
-  (:export #:handle-prompts-list
-           #:handle-prompts-get
-           #:get-available-prompts))
-
 (in-package #:mcp-server.prompts)
 
 (defvar *prompts-cache* nil
@@ -69,7 +54,7 @@
                       (list (make-instance 'prompt-message
                                            :role "user"
                                            :content (make-instance 'prompt-message-content
-                                                                   :type-name "text"
+                                                                   :type "text"
                                                                    :text (format nil "~A: ~A"
                                                                                  (arg-name (first (prompt-arguments prompt)))
                                                                                  (or (and arguments 

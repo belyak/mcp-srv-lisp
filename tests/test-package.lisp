@@ -11,7 +11,37 @@
                 #:make-json-rpc-response
                 #:make-json-rpc-error
                 #:encode-to-json
-                #:parse-from-json)
+                #:parse-from-json
+                ;; Import all the accessor functions
+                #:request-id #:request-method #:request-params
+                #:response-id #:response-result
+                #:error-id #:error-code #:error-message #:error-data
+                #:tool-name #:tool-description #:tool-input-schema
+                #:schema-type #:schema-properties #:schema-required
+                #:prop-type #:prop-description #:prop-enum-values
+                #:result-content #:result-is-error
+                #:content-type #:content-text #:content-data #:content-mime-type
+                #:tools-list #:tools-next-cursor
+                #:prompt-name #:prompt-description #:prompt-arguments
+                #:arg-name #:arg-description #:arg-required
+                #:msg-role #:msg-content
+                #:msg-content-type #:msg-content-text
+                #:prompt-result-description #:prompt-result-messages
+                #:prompts-list #:prompts-next-cursor
+                #:resource-uri #:resource-name #:resource-description #:resource-mime-type
+                #:content-uri #:content-text #:content-blob
+                #:resources-list #:resources-next-cursor
+                #:resource-content
+                #:connection-id #:disconnect-success
+                #:exec-output #:exec-is-error
+                #:cancel-request-id #:cancel-reason
+                #:impl-name #:impl-version
+                #:client-experimental #:client-roots #:client-sampling
+                #:server-experimental #:server-prompts #:server-resources 
+                #:server-tools #:server-roots #:server-sampling #:server-logging
+                #:init-protocol-version #:init-capabilities #:init-client-info
+                #:result-protocol-version #:result-capabilities 
+                #:result-server-info #:result-instructions)
   (:import-from #:mcp-server.tools
                 #:handle-tools-list
                 #:handle-tool-call

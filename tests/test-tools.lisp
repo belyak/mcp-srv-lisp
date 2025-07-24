@@ -2,6 +2,8 @@
 ;; Tools Tests (tests/test-tools.lisp)
 ;; =================================================================
 
+(in-package #:mcp-server-tests)
+
 (deftest test-tools-list-handler
   (let ((result (handle-tools-list nil)))
     (assert-not-nil result)
@@ -27,7 +29,7 @@
     (assert-equal nil (result-is-error result))
     (let ((content (first (result-content result))))
       (assert-equal "text" (content-type content))
-      (assert-true (search "Now:" (content-text content))))))
+      (assert-true (search "Current time in" (content-text content))))))
 
 (deftest test-invalid-tool-call
   (handler-case
