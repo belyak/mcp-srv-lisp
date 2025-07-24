@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        lisp: [sbcl]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Cache Quicklisp
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/common-lisp
+        key: ${{ runner.os }}-quicklisp-${{ hashFiles('**/*.asd') }}
+        restore-keys: |
+          ${{ runner.os }}-quicklisp-
+    
+    - name: Install Common Lisp (${{ matrix.lisp }})
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sbcl
+        
+    - name: Install Quicklisp
+      run: |
+        curl -O https://beta.quicklisp.org/quicklisp.lisp
+        sbcl --load quicklisp.lisp --eval "(quicklisp-quickstart:install)" --quit
+        echo "(load \"~/quicklisp/setup.lisp\")" > ~/.sbclrc
+        
+    - name: Install Lisp dependencies
+      run: make deps
+      
+    - name: Run Lisp unit tests
+      run: make test-lisp
+      
+    - name: Build MCP server
+      run: make build
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('tests/e2e/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+        
+    - name: Install Python dependencies
+      run: make install-python-deps
+      
+    - name: Run quick e2e tests
+      run: make test-e2e-quick
+      
+    - name: Run comprehensive tests (on main branch)
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      run: make test-e2e
