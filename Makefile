@@ -144,6 +144,12 @@ test-e2e-github: build install-python-deps
 		|| (echo "::error::E2E tests failed" && exit 1)
 	@echo "::endgroup::"
 
+# Run fastmcp reference server
+.PHONY: run-fastmcp-ref
+run-fastmcp-ref: install-python-deps
+	@echo "Running fastmcp reference server..."
+	$(VENV_DIR)/bin/fastmcp run ./tests/e2e/py-references/fastmcp_memdb.py
+
 # Run specific Python e2e test files
 .PHONY: test-e2e-protocol
 test-e2e-protocol: build install-python-deps
@@ -319,6 +325,7 @@ help:
 	@echo "Python environment targets:"
 	@echo "  venv               - Create Python virtual environment"
 	@echo "  install-python-deps- Install Python test dependencies"
+	@echo "  run-fastmcp-ref    - Run fastmcp reference server"
 	@echo ""
 	@echo "Installation targets:"
 	@echo "  install       - Install binary to /usr/local/bin"
