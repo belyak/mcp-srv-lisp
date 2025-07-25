@@ -19,6 +19,7 @@ class FastMCPTestClient:
     def __init__(self):
         self.process: Optional[subprocess.Popen[str]] = None
         self.request_id = 0
+        self.sampling_request_received = False
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -94,24 +95,67 @@ class FastMCPTestClient:
         self.process.stdin.write(request_json)  # type: ignore
         self.process.stdin.flush()  # type: ignore
 
-        # Read response
-        response_line = self.process.stdout.readline()  # type: ignore
-        if not response_line:
-            raise RuntimeError("No response from server")
+        # Read response - but handle sampling requests from server
+        while True:
+            response_line = self.process.stdout.readline()  # type: ignore
+            if not response_line:
+                raise RuntimeError("No response from server")
 
-        try:
-            response = json.loads(response_line.strip())
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Invalid JSON response: {response_line}") from e
+            try:
+                response = json.loads(response_line.strip())
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"Invalid JSON response: {response_line}") from e
 
-        # Check for errors
-        if "error" in response:
-            error = response["error"]
-            raise RuntimeError(
-                f"MCP Error {error.get('code', 'unknown')}: {error.get('message', 'Unknown error')}"
-            )
+            # Check if this is a sampling request from the server
+            if response.get("method") == "sampling/createMessage":
+                # Handle sampling request by providing a mock response
+                sampling_response = await self._handle_sampling_request(response)
+                sampling_json = json.dumps(sampling_response) + "\n"
+                self.process.stdin.write(sampling_json)  # type: ignore
+                self.process.stdin.flush()  # type: ignore
+                continue  # Continue reading for the actual response
 
-        return response.get("result", {})
+            # Check for errors
+            if "error" in response:
+                error = response["error"]
+                raise RuntimeError(
+                    f"MCP Error {error.get('code', 'unknown')}: {error.get('message', 'Unknown error')}"
+                )
+
+            return response.get("result", {})
+
+    async def _handle_sampling_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle sampling requests from the server by providing mock AI responses."""
+        # Mark that we received a sampling request
+        self.sampling_request_received = True
+        
+        sampling_id = request.get("id", 0)
+        messages = request.get("params", {}).get("messages", [])
+        
+        # Extract the text from the messages to create a contextual response
+        if messages and len(messages) > 0:
+            user_message = messages[0].get("content", {}).get("text", "")
+            
+            # Provide specific mock responses for testing
+            if "human" in user_message.lower() and "stupid" in user_message.lower():
+                mock_response = "Human is a very stupid animal"
+            else:
+                mock_response = f"Mock AI interpretation: {user_message}"
+        else:
+            mock_response = "Mock AI response for testing"
+        
+        return {
+            "jsonrpc": "2.0",
+            "id": sampling_id,
+            "result": {
+                "model": "mock-ai",
+                "role": "assistant", 
+                "content": {
+                    "type": "text",
+                    "text": mock_response
+                }
+            }
+        }
 
     async def initialize(self) -> Dict[str, Any]:
         """Initialize the MCP session."""
@@ -358,53 +402,159 @@ class TestFastMCPMemDB:
 
     @pytest.mark.asyncio
     async def test_interpret_key_function(self):
-        """Test the interpret_key function with human/stupid key-value pair."""
+        """Test the interpret_key function with human/stupid key-value pair - REQUIRES AI sampling."""
         async with FastMCPTestClient() as client:
+            # Clear database first
+            await client.call_tool("clear", {})
+            
+            # Set the human/stupid key-value pair
+            set_result = await client.call_tool("set", {"key": "human", "value": "stupid"})
+            assert "content" in set_result
+            set_content = set_result["content"][0]
+            set_data = json.loads(set_content["text"])
+            assert set_data["status"] == "ok"
+            assert set_data["key"] == "human"
+            assert set_data["value"] == "stupid"
+            
+            # Verify the key was actually stored
+            keys_result = await client.read_resource("memory::/keys")
+            keys_content = keys_result["contents"][0]
+            keys_data = json.loads(keys_content["text"])
+            assert "human" in keys_data["keys"]
+            assert keys_data["count"] == 1
+            
+            # Track if we received a sampling request to verify AI integration
+            client.sampling_request_received = False
+            
+            # Call interpret_key tool - this MUST use AI sampling, not fallback
+            result = await client.call_tool("interpret_key", {"key": "human"})
+            print(f"interpret_key result: {result}")
+            
+            # STRICT REQUIREMENT: The server must have made a sampling request to the client
+            assert hasattr(client, 'sampling_request_received') and client.sampling_request_received, \
+                "FAIL: Server did not request AI sampling - interpretation must be AI-generated, not fallback"
+            print("✓ Server correctly used AI sampling (not fallback)")
+            
+            # Verify we got a proper response
+            assert result, "FAIL: interpret_key returned empty result"
+            assert "content" in result and result["content"], "FAIL: No content in response"
+            
+            content = result["content"][0]
+            print(f"Response content: {content}")
+            assert "text" in content, "FAIL: Response content has no 'text' field"
+            
+            data = json.loads(content["text"])
+            print(f"Parsed data: {data}")
+            
+            # Verify the response structure for found key
+            assert data["status"] == "found", f"Expected status 'found', got {data.get('status')}"
+            assert data["key"] == "human", f"Expected key 'human', got {data.get('key')}"
+            assert data["value"] == "stupid", f"Expected value 'stupid', got {data.get('value')}"
+            assert "interpretation" in data, "FAIL: No interpretation field in response"
+            assert data["interpretation"], "FAIL: Empty interpretation - AI sampling should provide content"
+            
+            interpretation = data["interpretation"]
+            print(f"AI-generated interpretation: {interpretation}")
+            
+            # Handle both string and object interpretation formats
+            interpretation_text = ""
+            if isinstance(interpretation, str):
+                interpretation_text = interpretation
+            elif isinstance(interpretation, dict) and "text" in interpretation:
+                interpretation_text = interpretation["text"]
+            else:
+                interpretation_text = str(interpretation)
+            
+            # Verify this is the AI-generated response, not fallback
+            # The mock AI response should contain our expected phrase
+            expected_phrase = "Human is a very stupid animal"
+            assert expected_phrase in interpretation_text, \
+                f"FAIL: Expected AI-generated interpretation '{expected_phrase}' not found in: {interpretation_text}"
+            print(f"✓ Confirmed AI-generated interpretation: {expected_phrase}")
+            
+            # Additional check: ensure it's not the fallback pattern
+            fallback_pattern = "(fallback interpretation)"
+            assert fallback_pattern not in interpretation_text, \
+                "FAIL: Response contains fallback interpretation pattern, expected AI-generated content"
+            print("✓ Confirmed interpretation is AI-generated, not fallback")
+            
+            # Test with non-existent key for comparison
+            print("Testing with non-existent key...")
+            client.sampling_request_received = False  # Reset flag
+            nonexistent_result = await client.call_tool("interpret_key", {"key": "nonexistent"})
+            print(f"Non-existent key result: {nonexistent_result}")
+            
+            # For non-existent keys, no sampling should occur
+            assert not (hasattr(client, 'sampling_request_received') and client.sampling_request_received), \
+                "FAIL: Server should not request AI sampling for non-existent keys"
+            
+            if nonexistent_result and "content" in nonexistent_result and nonexistent_result["content"]:
+                content = nonexistent_result["content"][0] 
+                if "text" in content:
+                    data = json.loads(content["text"])
+                    assert data["status"] == "not found", f"Expected 'not found' for nonexistent key, got {data.get('status')}"
+                    assert data["key"] == "nonexistent", f"Expected key 'nonexistent', got {data.get('key')}"
+                    assert "interpretation" not in data or not data["interpretation"], "Should not have interpretation for non-existent key"
+                    print("✓ Non-existent key handling works correctly")
+            
+            print("✓ interpret_key function test completed successfully with mandatory AI sampling")
+
+    @pytest.mark.asyncio
+    async def test_interpret_key_fails_without_ai(self):
+        """Test that interpret_key function fails when AI sampling is not available."""
+        
+        # Create a modified client that doesn't respond to sampling requests
+        class BrokenAITestClient(FastMCPTestClient):
+            async def _handle_sampling_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+                """Simulate broken AI by not responding to sampling requests properly."""
+                # Mark that we received a sampling request but don't respond properly
+                self.sampling_request_received = True
+                
+                # Return an error response instead of a valid AI response
+                sampling_id = request.get("id", 0)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": sampling_id,
+                    "error": {
+                        "code": -32000,
+                        "message": "AI service unavailable"
+                    }
+                }
+        
+        async with BrokenAITestClient() as client:
             # Clear database first
             await client.call_tool("clear", {})
             
             # Set the human/stupid key-value pair
             await client.call_tool("set", {"key": "human", "value": "stupid"})
             
-            # Call interpret_key tool - note that this may return empty result
-            # if AI context is not available in test environment
-            try:
-                result = await client.call_tool("interpret_key", {"key": "human"})
-                
-                # If the result is not empty, verify the structure
-                if result and "content" in result:
-                    content = result["content"][0]
-                    data = json.loads(content["text"])
-                    
-                    # Verify the response structure
-                    assert data["status"] == "found"
-                    assert data["key"] == "human"
-                    assert data["value"] == "stupid"
-                    
-                    # If interpretation is present, check it contains relevant terms
-                    if "interpretation" in data:
-                        interpretation = data["interpretation"].lower()
-                        assert "human" in interpretation
-                else:
-                    # If result is empty, it means the AI sampling failed
-                    # which is expected in test environment without AI context
-                    print("Note: interpret_key returned empty result - AI context may not be available in test environment")
-                
-                # Test with non-existent key
-                result = await client.call_tool("interpret_key", {"key": "nonexistent"})
-                if result and "content" in result:
-                    content = result["content"][0] 
-                    data = json.loads(content["text"])
-                    assert data["status"] == "not found"
-                    assert data["key"] == "nonexistent"
-                    
-            except Exception as e:
-                # If the tool call fails, it might be due to missing AI context
-                print(f"interpret_key tool call failed (expected in test environment): {e}")
-                # We can still verify the tool exists in the tools list
-                tools_result = await client.list_tools()
-                tool_names = {tool["name"] for tool in tools_result["tools"]}
-                assert "interpret_key" in tool_names
+            # Reset sampling flag
+            client.sampling_request_received = False
+            
+            # Call interpret_key tool - this should fail because AI is broken
+            result = await client.call_tool("interpret_key", {"key": "human"})
+            print(f"Response when AI fails: {result}")
+            
+            # Check that the response indicates an error
+            assert result.get("isError") is True, "Expected isError=True when AI sampling fails"
+            
+            # Verify the error message contains our expected failure reason
+            content = result.get("content", [])
+            assert content, "Expected error content in response"
+            
+            error_text = content[0].get("text", "")
+            assert "interpret_key requires AI sampling but failed" in error_text, \
+                f"Expected AI sampling failure message, got: {error_text}"
+            assert "AI service unavailable" in error_text, \
+                f"Expected AI service unavailable message, got: {error_text}"
+            
+            # Verify that a sampling request was attempted
+            assert client.sampling_request_received, \
+                "Server should have attempted AI sampling before failing"
+            
+            print("✓ Server correctly attempted AI sampling before failing")
+            print("✓ interpret_key correctly fails when AI sampling is unavailable")
+            print(f"✓ Error message: {error_text}")
 
     @pytest.mark.asyncio
     async def test_clear_database(self):

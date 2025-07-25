@@ -3,7 +3,7 @@
 A minimal FastMCP in-memory DB server with metadata.
 Run with: pipx run fastmcp ./fastmcp_memdb.py
 """
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
 
 mcp = FastMCP(
     "memdb",
@@ -40,6 +40,56 @@ async def get(key: str):
 async def set(key: str, value: str):
     DB[key] = value
     return {"status": "ok", "key": key, "value": value}
+
+
+@mcp.tool()
+async def interpret_key(key: str, ctx: Context):
+    """
+    Interpret a key as a command using AI sampling.
+    This function REQUIRES AI context and will fail without it.
+    """
+
+    if key in DB:
+        # ONLY use AI interpretation - no fallback allowed
+        try:
+            interpretation = await ctx.sample(
+                f"Explain the key '{key}'"
+                f" with value '{DB[key]}' from the DB."
+            )
+            
+            # Validate that we got a meaningful response
+            if not interpretation:
+                raise RuntimeError("AI sampling returned empty response")
+            
+            # Handle different response formats from FastMCP
+            if isinstance(interpretation, str):
+                if not interpretation.strip():
+                    raise RuntimeError("AI sampling returned empty string")
+                final_interpretation = interpretation
+            elif hasattr(interpretation, 'text'):
+                # FastMCP returns objects with .text attribute
+                final_interpretation = interpretation.text
+                if not final_interpretation.strip():
+                    raise RuntimeError("AI sampling returned empty text in object")
+            elif isinstance(interpretation, dict) and "text" in interpretation:
+                if not interpretation["text"].strip():
+                    raise RuntimeError("AI sampling returned empty text in dict")
+                final_interpretation = interpretation["text"]
+            else:
+                # Convert to string but ensure it's meaningful
+                final_interpretation = str(interpretation)
+                if not final_interpretation.strip():
+                    raise RuntimeError("AI sampling returned non-meaningful response")
+            
+            return {"status": "found", "key": key, 
+                    "value": DB[key], 
+                    "interpretation": final_interpretation}
+                    
+        except Exception as e:
+            # Fail explicitly if AI context is not available
+            raise RuntimeError(f"interpret_key requires AI sampling but failed: {e}")
+    else:
+        return {"status": "not found", "key": key}
 
 
 # Action to clear DB
